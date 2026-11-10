@@ -1,8 +1,25 @@
 ---@class QuestieTraceMenu
 local QuestieTraceMenu = QuestieLoader:CreateModule("QuestieTraceMenu")
 
+---@type l10n
+local l10n = QuestieLoader:ImportModule("l10n")
 local TRACE_RUNNING_COLOR = { 0.25, 1.0, 0.25 }
 local TRACE_STOPPED_COLOR = { 1.0, 0.25, 0.25 }
+
+---Returns whether QuestieTrace has permission to start a capture.
+---@param trace QuestieTraceCore
+---@return boolean
+local function hasConsent(trace)
+    if type(trace.GetConsentState) == "function" then
+        return trace.GetConsentState() == true
+    end
+
+    -- Keep compatibility with QuestieTrace versions predating GetConsentState.
+    local settings = rawget(_G, "QuestieTrace")
+    return type(settings) ~= "table"
+        or type(settings.settings) ~= "table"
+        or settings.settings.dataCollectionConsent == true
+end
 
 ---Returns whether QuestieTrace currently has an active capture.
 ---@param trace QuestieTraceCore
@@ -96,6 +113,10 @@ end
 ---@param button Button
 ---@param trace QuestieTraceCore
 function QuestieTraceMenu.RefreshButton(button, trace)
+    if not button then
+        return
+    end
+
     local isRunning = getIsRunning(trace)
     tintButton(button, isRunning)
     button.checked = isRunning
@@ -114,11 +135,18 @@ function QuestieTraceMenu.Toggle(trace)
     local status = trace.GetStatusData()
     if status.isRunning then
         trace.StopCapture()
-        Questie:Print("Recording stopped")
+        Questie:Print(l10n("QuestieTrace stopped"))
     else
+        if not hasConsent(trace) then
+            if type(trace.ShowConsentPrompt) == "function" then
+                trace.ShowConsentPrompt()
+            end
+            return
+        end
+
         -- Preserve a stopped session before starting the next one.
         trace.SaveCapture()
         trace.StartCapture()
-        Questie:Print("Recording started...")
+        Questie:Print(l10n("QuestieTrace started"))
     end
 end

@@ -178,4 +178,38 @@ describe("QuestieTraceMenu", function()
         QuestieTraceMenu.Toggle(trace)
         assert.are_same({"save", "start"}, calls)
     end)
+
+    it("shows the consent prompt instead of starting after consent was declined", function()
+        local calls = {}
+        local trace = {
+            GetStatusData = function() return {isRunning = false} end,
+            GetConsentState = function() return false end,
+            ShowConsentPrompt = function() calls[#calls + 1] = "prompt" end,
+            SaveCapture = function() calls[#calls + 1] = "save" end,
+            StartCapture = function() calls[#calls + 1] = "start" end,
+        }
+
+        QuestieTraceMenu.Toggle(trace)
+        assert.are_same({"prompt"}, calls)
+    end)
+
+    it("prints the QuestieTrace start and stop messages", function()
+        local originalPrint = Questie.Print
+        local messages = {}
+        local running = false
+        Questie.Print = function(_, message) messages[#messages + 1] = message end
+        local trace = {
+            GetStatusData = function() return {isRunning = running} end,
+            GetConsentState = function() return true end,
+            SaveCapture = function() end,
+            StartCapture = function() running = true end,
+            StopCapture = function() running = false end,
+        }
+
+        QuestieTraceMenu.Toggle(trace)
+        QuestieTraceMenu.Toggle(trace)
+        Questie.Print = originalPrint
+
+        assert.are_same({"QuestieTrace started", "QuestieTrace stopped"}, messages)
+    end)
 end)
