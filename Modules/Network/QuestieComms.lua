@@ -24,6 +24,8 @@ local QuestLogCache = QuestieLoader:ImportModule("QuestLogCache")
 local QuestiePartyObjectives = QuestieLoader:ImportModule("QuestiePartyObjectives")
 ---@type CommsVisibility
 local CommsVisibility = QuestieLoader:ImportModule("CommsVisibility")
+---@type CommsRouting
+local CommsRouting = QuestieLoader:ImportModule("CommsRouting")
 
 ---@type HBD
 local HBD = QuestieLoader:ImportModule("HBD")
@@ -1017,7 +1019,11 @@ _QuestieComms.packets = {
             --else
             --    QuestieComms:BroadcastQuestLogV2(self.playerName, "WHISPER") -- player doesnt have new questie, use old packet
             --end
-            if GetUnitName("Player", true) ~= self.playerName then
+            -- The reply whispers every quest id and objective. Only answer a current group member when
+            -- AceComm delivered the request on PARTY, RAID, INSTANCE_CHAT, or WHISPER. distribution is
+            -- copied from AceComm in OnCommReceived_unsafe and replaces any value in the payload.
+            local requesterIsGrouped = CommsRouting:IsMessageFromGroupMember(self.distribution, self.playerName)
+            if GetUnitName("Player", true) ~= self.playerName and requesterIsGrouped then
                 local major, _, _ = strsplit(".", self.ver)
                 if tonumber(major) > 5 then
                     _QuestieComms:BroadcastQuestLogV2("QC_ID_BROADCAST_FULL_QUESTLIST", "WHISPER", self.playerName)
@@ -1137,6 +1143,7 @@ function _QuestieComms:OnCommReceived_unsafe(message, distribution, sender)
         --Check if the message version is the same base value
         if distribution == "YELL" and decompressedData.msgId and _QuestieComms.packets[decompressedData.msgId] then
             decompressedData.playerName = sender;
+            decompressedData.distribution = distribution;
             Questie.Debug(Questie.DEBUG_DEVELOP, "Executing message ID: ", decompressedData.msgId, "From: ", sender)
             _QuestieComms.packets[decompressedData.msgId].read(decompressedData)
         elseif (decompressedData and decompressedData.msgVer and floor(decompressedData.msgVer) == floor(commMessageVersion)) then
@@ -1158,6 +1165,7 @@ function _QuestieComms:OnCommReceived_unsafe(message, distribution, sender)
                 end
 
                 decompressedData.playerName = sender;
+                decompressedData.distribution = distribution;
                 Questie.Debug(Questie.DEBUG_DEVELOP, "Executing message ID: ", decompressedData.msgId, "From: ", sender, "MessageVersion:",
                     decompressedData.msgVer)
 

@@ -55,6 +55,7 @@ describe("QuestieComms", function()
         QuestieSerializer = QuestieLoader:ImportModule("QuestieSerializer")
         originalQuestieSerializerDeserialize = QuestieSerializer.Deserialize
 
+        dofile("Modules/Network/CommsRouting.lua")
         dofile("Modules/Network/QuestieComms.lua")
         QuestieComms = QuestieLoader:ImportModule("QuestieComms")
         QuestieComms.remoteQuestLogs = {}
@@ -271,6 +272,126 @@ describe("QuestieComms", function()
             end
 
             assert.are_equal(2, deserializeCalls)
+        end)
+    end)
+
+    describe("QC_ID_REQUEST_FULL_QUESTLIST", function()
+        ---@type CommsVisibility
+        local CommsVisibility
+        local broadcastQuestLog
+        local broadcastQuestLogV2
+        local originalStrsplit
+
+        before_each(function()
+            CommsVisibility = QuestieLoader:ImportModule("CommsVisibility")
+            CommsVisibility.ScheduleSnapshot = spy.new(function() end)
+            broadcastQuestLog = spy.new(function() end)
+            broadcastQuestLogV2 = spy.new(function() end)
+            QuestieComms.private.BroadcastQuestLog = broadcastQuestLog
+            QuestieComms.private.BroadcastQuestLogV2 = broadcastQuestLogV2
+            -- Skip the "you are outdated" version compare; it is unrelated to who may receive the log.
+            Questie.db.profile.debugEnabled = true
+            _G.floor = math.floor
+            -- The shared strsplit mock treats "." as a pattern, so version strings come back empty.
+            originalStrsplit = _G.strsplit
+            _G.strsplit = function(delimiter, str)
+                if delimiter == "." then
+                    return str:match("^(%d+)%.(%d+)%.(%d+)$")
+                end
+                return originalStrsplit(delimiter, str)
+            end
+        end)
+
+        after_each(function()
+            Questie.db.profile.debugEnabled = nil
+            _G.strsplit = originalStrsplit
+        end)
+
+        --- Payload distribution and playerName are hostile on purpose: OnCommReceived must overwrite both
+        --- with the AceComm sender and distribution before the handler decides.
+        local function deliverRequest(distribution, sender, version)
+            QuestieSerializer.Deserialize = function()
+                return {
+                    msgVer = 5,
+                    msgId = QuestieComms.private.QC_ID_REQUEST_FULL_QUESTLIST,
+                    ver = version or "12.8.0",
+                    distribution = "GUILD",
+                    playerName = "Stranger",
+                }
+            end
+            QuestieComms.private:OnCommReceived_unsafe("payload", distribution, sender)
+        end
+
+        it("should whisper the full quest log to a current group member", function()
+            for _, distribution in ipairs({"PARTY", "RAID", "INSTANCE_CHAT", "WHISPER"}) do
+                broadcastQuestLogV2 = spy.new(function() end)
+                QuestieComms.private.BroadcastQuestLogV2 = broadcastQuestLogV2
+                CommsVisibility.ScheduleSnapshot = spy.new(function() end)
+
+                deliverRequest(distribution, playerName)
+
+                assert.spy(QuestieComms.private.BroadcastQuestLogV2).was.called_with(
+                    QuestieComms.private, "QC_ID_BROADCAST_FULL_QUESTLIST", "WHISPER", playerName)
+                assert.spy(CommsVisibility.ScheduleSnapshot).was.called_with(CommsVisibility, "QC_ID_REQUEST_FULL_QUESTLIST")
+                assert.spy(broadcastQuestLog).was.not_called()
+            end
+        end)
+
+        it("should whisper the full quest log to a raid member outside the party subgroup", function()
+            isPlayerInGroup = false
+            _G.IsInRaid = function() return true end
+            _G.UnitInRaid = function(name)
+                return name == playerName and 3 or nil
+            end
+
+            deliverRequest("RAID", playerName)
+
+            assert.spy(broadcastQuestLogV2).was.called_with(
+                QuestieComms.private, "QC_ID_BROADCAST_FULL_QUESTLIST", "WHISPER", playerName)
+            assert.spy(CommsVisibility.ScheduleSnapshot).was.called_with(CommsVisibility, "QC_ID_REQUEST_FULL_QUESTLIST")
+        end)
+
+        it("should answer an older group member with the v1 quest log", function()
+            deliverRequest("PARTY", playerName, "5.0.0")
+
+            assert.spy(broadcastQuestLog).was.called_with(
+                QuestieComms.private, "QC_ID_BROADCAST_FULL_QUESTLIST", "WHISPER", playerName)
+            assert.spy(broadcastQuestLogV2).was.not_called()
+            assert.spy(CommsVisibility.ScheduleSnapshot).was.called_with(CommsVisibility, "QC_ID_REQUEST_FULL_QUESTLIST")
+        end)
+
+        it("should not answer a player outside the group", function()
+            isPlayerInGroup = false
+
+            for _, distribution in ipairs({"PARTY", "RAID", "INSTANCE_CHAT", "WHISPER", "GUILD", "CHANNEL", "YELL"}) do
+                deliverRequest(distribution, playerName, "4.0.0")
+            end
+
+            assert.spy(broadcastQuestLog).was.not_called()
+            assert.spy(broadcastQuestLogV2).was.not_called()
+            assert.spy(CommsVisibility.ScheduleSnapshot).was.not_called()
+        end)
+
+        it("should not answer on guild, channel, or yell even when the sender is grouped", function()
+            for _, distribution in ipairs({"GUILD", "CHANNEL", "YELL"}) do
+                deliverRequest(distribution, playerName)
+            end
+
+            assert.spy(broadcastQuestLog).was.not_called()
+            assert.spy(broadcastQuestLogV2).was.not_called()
+            assert.spy(CommsVisibility.ScheduleSnapshot).was.not_called()
+        end)
+
+        it("should not queue another broadcast when an outsider repeats the request", function()
+            isPlayerInGroup = false
+
+            deliverRequest("WHISPER", playerName)
+            deliverRequest("GUILD", playerName)
+            deliverRequest("WHISPER", playerName, "4.0.0")
+
+            assert.spy(broadcastQuestLog).was.not_called()
+            assert.spy(broadcastQuestLogV2).was.not_called()
+            assert.spy(CommsVisibility.ScheduleSnapshot).was.not_called()
         end)
     end)
 end)
