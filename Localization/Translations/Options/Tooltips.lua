@@ -182,6 +182,30 @@ local tooltipOptionsLocales = {
         ["zhCN"] = "启用时，任务目标的掉率将显示在怪物信息提示框中",
         ["zhTW"] = "啟用時，任務目標的掉落率將顯示在怪物的提示資訊中",
     },
+    ["Show quest link tooltips"] = {
+        ["enUS"] = true,
+        ["deDE"] = false,
+        ["esES"] = false,
+        ["esMX"] = false,
+        ["frFR"] = false,
+        ["koKR"] = false,
+        ["ptBR"] = false,
+        ["ruRU"] = false,
+        ["zhCN"] = false,
+        ["zhTW"] = false,
+    },
+    ["If checked, hovering a quest link in chat shows the quest tooltip."] = {
+        ["enUS"] = true,
+        ["deDE"] = false,
+        ["esES"] = false,
+        ["esMX"] = false,
+        ["frFR"] = false,
+        ["koKR"] = false,
+        ["ptBR"] = false,
+        ["ruRU"] = false,
+        ["zhCN"] = false,
+        ["zhTW"] = false,
+    },
 }
 
 for k, v in pairs(tooltipOptionsLocales) do

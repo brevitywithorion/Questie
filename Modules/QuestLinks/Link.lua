@@ -471,8 +471,17 @@ _InstallSetHyperlinkOverride = function()
     end
 end
 
+--- Hover tooltips stay on when the setting is missing, which is how quest links behaved before the option existed.
+local function IsQuestLinkTooltipEnabled()
+    return Questie.db.profile.enableQuestLinkTooltips ~= false
+end
+
 -- Show quest tooltip on hover.
 local function ShowQuestieHoverTooltip(link)
+    if not IsQuestLinkTooltipEnabled() then
+        return false
+    end
+
     local questiePrefix = string.match(link or "", "^(questie):")
     if questiePrefix == "questie" then
         GameTooltip:ClearLines()
@@ -493,7 +502,7 @@ local function HookChattynator()
 
     handler:HookScript("OnHyperlinkEnter", function(_, hyperlink)
         local linkType = hyperlink:match("^(.-):")
-        if linkType == "questie" then
+        if linkType == "questie" and IsQuestLinkTooltipEnabled() then
             GameTooltip:SetOwner(handler:GetParent(), "ANCHOR_CURSOR")
             ShowQuestieHoverTooltip(hyperlink)
         end
@@ -513,12 +522,10 @@ local function HookDefaultChatFrames()
         if chatFrame then
             chatFrame:HookScript("OnHyperlinkEnter", function(self, link, ...)
                 local linkType = string.match(link or "", "^(.-):")
-                if linkType == "questie" then
+                if linkType == "questie" and IsQuestLinkTooltipEnabled() then
                     self._questieHoverActive = true
                     GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
-                    GameTooltip:ClearLines()
-                    QuestieLink:CreateQuestTooltip(link, GameTooltip)
-                    GameTooltip:Show()
+                    ShowQuestieHoverTooltip(link)
                     return
                 end
                 self._questieHoverActive = false

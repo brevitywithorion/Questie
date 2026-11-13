@@ -540,6 +540,17 @@ function QuestieOptionsEngine.tabs.general:Initialize()
                             Questie.db.profile.enableTooltipDroprates = value
                         end
                     },
+                    enableQuestLinkTooltips = {
+                        type = "checkbox",
+                        order = 8.7,
+                        title = "Show quest link tooltips",
+                        tooltip = "If checked, hovering a quest link in chat shows the quest tooltip.",
+                        width = "half",
+                        get = function() return Questie.db.profile.enableQuestLinkTooltips; end,
+                        set = function(info, value)
+                            Questie.db.profile.enableQuestLinkTooltips = value
+                        end
+                    },
                 },
             },
             sound_options_group = {
