@@ -308,6 +308,10 @@ local migrationFunctions = {
         -- The Blizzard quest timer is always hidden now; timed quests are shown in the Questie tracker.
         Questie.db.profile.showBlizzardQuestTimer = nil
     end,
+    [50] = function()
+        -- Quest link hover tooltips were always shown. Keep that until the player turns them off.
+        Questie.db.profile.enableQuestLinkTooltips = true
+    end,
 }
 
 function Migration:Migrate()

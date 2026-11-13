@@ -788,4 +788,134 @@ describe("QuestieLink", function()
             }, tooltipLines)
         end)
     end)
+
+    describe("quest link hover tooltips", function()
+        local enterHandler, leaveHandler, chatFrame
+
+        local function MockGameTooltip()
+            _G.GameTooltip = {
+                SetOwner = spy.new(function() end),
+                ClearLines = spy.new(function() end),
+                Show = spy.new(function() end),
+                Hide = spy.new(function() end),
+            }
+            QuestieLink.CreateQuestTooltip = spy.new(function() end)
+        end
+
+        local function InstallDefaultChatHooks()
+            enterHandler = nil
+            leaveHandler = nil
+            chatFrame = {
+                HookScript = function(_, script, callback)
+                    if script == "OnHyperlinkEnter" then
+                        enterHandler = callback
+                    elseif script == "OnHyperlinkLeave" then
+                        leaveHandler = callback
+                    end
+                end,
+            }
+            _G.NUM_CHAT_WINDOWS = 1
+            _G.ChatFrame1 = chatFrame
+            _G.Chattynator = nil
+            MockGameTooltip()
+            QuestieLink.Initialize()
+        end
+
+        after_each(function()
+            _G.NUM_CHAT_WINDOWS = nil
+            _G.ChatFrame1 = nil
+            _G.Chattynator = nil
+            _G.GameTooltip = nil
+        end)
+
+        it("should show the quest tooltip when the option is unset", function()
+            Questie.db.profile.enableQuestLinkTooltips = nil
+            InstallDefaultChatHooks()
+
+            enterHandler(chatFrame, "questie:74:GUID")
+
+            assert.spy(QuestieLink.CreateQuestTooltip).was.called_with(QuestieLink, "questie:74:GUID", GameTooltip)
+            assert.spy(GameTooltip.Show).was.called()
+            assert.is_true(chatFrame._questieHoverActive)
+        end)
+
+        it("should show the quest tooltip when the option is on", function()
+            Questie.db.profile.enableQuestLinkTooltips = true
+            InstallDefaultChatHooks()
+
+            enterHandler(chatFrame, "questie:74:GUID")
+            leaveHandler(chatFrame)
+
+            assert.spy(QuestieLink.CreateQuestTooltip).was.called()
+            assert.spy(GameTooltip.Hide).was.called()
+            assert.is_false(chatFrame._questieHoverActive)
+        end)
+
+        it("should not show the quest tooltip when the option is off", function()
+            Questie.db.profile.enableQuestLinkTooltips = false
+            InstallDefaultChatHooks()
+
+            enterHandler(chatFrame, "questie:74:GUID")
+            leaveHandler(chatFrame)
+
+            assert.spy(QuestieLink.CreateQuestTooltip).was.not_called()
+            assert.spy(GameTooltip.SetOwner).was.not_called()
+            assert.spy(GameTooltip.Show).was.not_called()
+            assert.spy(GameTooltip.Hide).was.not_called()
+            assert.is_false(chatFrame._questieHoverActive)
+        end)
+
+        it("should ignore links that are not quest links", function()
+            Questie.db.profile.enableQuestLinkTooltips = true
+            InstallDefaultChatHooks()
+
+            enterHandler(chatFrame, "item:12345")
+
+            assert.spy(QuestieLink.CreateQuestTooltip).was.not_called()
+            assert.spy(GameTooltip.Show).was.not_called()
+            assert.is_false(chatFrame._questieHoverActive)
+        end)
+
+        describe("Chattynator", function()
+            local handlerScripts, handler
+
+            before_each(function()
+                handlerScripts = {}
+                handler = {
+                    GetParent = function() return {} end,
+                    HookScript = function(_, script, callback)
+                        handlerScripts[script] = callback
+                    end,
+                }
+                _G.Chattynator = {
+                    API = {
+                        GetHyperlinkHandler = function() return handler end,
+                    },
+                }
+                _G.ChatFrame1 = nil
+                MockGameTooltip()
+                QuestieLink.Initialize()
+            end)
+
+            it("should show the quest tooltip on hover when the option is on", function()
+                Questie.db.profile.enableQuestLinkTooltips = true
+
+                handlerScripts.OnHyperlinkEnter(handler, "questie:74:GUID")
+
+                assert.spy(QuestieLink.CreateQuestTooltip).was.called_with(QuestieLink, "questie:74:GUID", GameTooltip)
+                assert.spy(GameTooltip.SetOwner).was.called()
+                assert.spy(GameTooltip.Show).was.called()
+            end)
+
+            it("should not show the quest tooltip on hover when the option is off", function()
+                Questie.db.profile.enableQuestLinkTooltips = false
+
+                handlerScripts.OnHyperlinkEnter(handler, "questie:74:GUID")
+
+                assert.spy(QuestieLink.CreateQuestTooltip).was.not_called()
+                assert.spy(GameTooltip.SetOwner).was.not_called()
+                assert.spy(GameTooltip.Show).was.not_called()
+            end)
+        end)
+    end)
 end)

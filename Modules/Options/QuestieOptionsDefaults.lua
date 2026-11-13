@@ -67,6 +67,8 @@ function QuestieOptionsDefaults:Load()
             showAvailableQuests = true,
             enableAvailableItems = true,
             enableTooltips = true,
+            -- Chat hover tooltips for quest links. On matches the behavior before this option existed.
+            enableQuestLinkTooltips = true,
             enableTooltipsItemID = false,
             enableTooltipsNPCID = false,
             enableTooltipsBreadcrumbQuests = false,
